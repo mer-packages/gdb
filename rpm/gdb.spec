@@ -10,7 +10,7 @@ Name:       gdb
 # << macros
 
 Summary:    A GNU source-level debugger for C, C++, Java and other languages
-Version:    7.5.1
+Version:    7.7.1
 Release:    1
 Group:      Development/Debuggers
 License:    GPLv3+
