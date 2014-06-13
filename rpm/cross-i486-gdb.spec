@@ -203,7 +203,9 @@ fi
 %doc COPYING COPYING.LIB README NEWS
 %{_bindir}/gcore
 %{_bindir}/gdb
+%{_mandir}/*/gcore.1*
 %{_mandir}/*/gdb.1*
+%{_mandir}/*/gdbinit.5*
 %{_datadir}/gdb
 %{_infodir}/annotate.info.gz
 %{_infodir}/gdb.info.gz
