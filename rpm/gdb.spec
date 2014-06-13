@@ -181,14 +181,12 @@ cd %{gdb_build}
 %post
 %install_info --info-dir=%_infodir %{_infodir}/annotate.info.gz
 %install_info --info-dir=%_infodir %{_infodir}/gdb.info.gz
-%install_info --info-dir=%_infodir %{_infodir}/gdbint.info.gz
 %install_info --info-dir=%_infodir %{_infodir}/stabs.info.gz
 
 %postun
 if [ $1 = 0 ] ;then
 %install_info_delete --info-dir=%{_infodir} %{_infodir}/annotate.info.gz
 %install_info_delete --info-dir=%{_infodir} %{_infodir}/gdb.info.gz
-%install_info_delete --info-dir=%{_infodir} %{_infodir}/gdbint.info.gz
 %install_info_delete --info-dir=%{_infodir} %{_infodir}/stabs.info.gz
 fi
 %endif
@@ -208,7 +206,6 @@ fi
 %{_datadir}/gdb
 %{_infodir}/annotate.info.gz
 %{_infodir}/gdb.info.gz
-%{_infodir}/gdbint.info.gz
 %{_infodir}/stabs.info.gz
 # << files
 
