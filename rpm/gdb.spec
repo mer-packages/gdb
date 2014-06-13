@@ -154,11 +154,7 @@ cd %{gdb_build}
 %make_install
 
 # >> install post
-# install the gcore script in /usr/bin
-%if "%{?crosstarget}" == ""
-cp $RPM_BUILD_DIR/%{gdb_src}/gdb/gdb_gcore.sh $RPM_BUILD_ROOT%{_bindir}/gcore
-chmod 755 $RPM_BUILD_ROOT%{_bindir}/gcore
-%else
+%if "%{?crosstarget}" != ""
 rm -rf $RPM_BUILD_ROOT%{_infodir}/
 rm -rf $RPM_BUILD_ROOT%{_mandir}/
 %endif
