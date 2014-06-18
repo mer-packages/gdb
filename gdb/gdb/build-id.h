@@ -20,6 +20,11 @@
 #ifndef BUILD_ID_H
 #define BUILD_ID_H
 
+/* Extract ELF build-id from OBJFILE and convert it to a string. The caller must
+ * free this. */
+
+extern char *build_id_get(struct objfile *objfile);
+
 /* Return true if ABFD has NT_GNU_BUILD_ID matching the CHECK value.
    Otherwise, issue a warning and return false.  */
 

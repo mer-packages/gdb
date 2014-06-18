@@ -46,6 +46,7 @@
 #include "bcache.h"
 #include "gdb_bfd.h"
 #include "build-id.h"
+#include "gdbcmd.h"
 
 extern void _initialize_elfread (void);
 
@@ -1083,6 +1084,135 @@ elf_gnu_ifunc_resolver_return_stop (struct breakpoint *b)
   update_breakpoint_locations (b, sals, sals_end);
 }
 
+#define BUILD_ID_VERBOSE_OFF 0
+#define BUILD_ID_VERBOSE_ON 1
+static int build_id_verbose = BUILD_ID_VERBOSE_ON;
+static void
+show_build_id_verbose (struct ui_file *file, int from_tty,
+		       struct cmd_list_element *c, const char *value)
+{
+  fprintf_filtered (file, _("Verbosity level of the build-id locator is %s.\n"),
+		    value);
+}
+
+/* This MISSING_FILEPAIR_HASH tracker is used only for the duplicate messages
+     zypper install -C "debuginfo(build-id)=..."
+   avoidance.  */
+
+struct missing_filepair
+  {
+    char *binary;
+    char *debug;
+    char data[1];
+  };
+
+static struct htab *missing_filepair_hash;
+static struct obstack missing_filepair_obstack;
+
+static void *
+missing_filepair_xcalloc (size_t nmemb, size_t nmemb_size)
+{
+  void *retval;
+  size_t size = nmemb * nmemb_size;
+
+  retval = obstack_alloc (&missing_filepair_obstack, size);
+  memset (retval, 0, size);
+  return retval;
+}
+
+static hashval_t
+missing_filepair_hash_func (const struct missing_filepair *elem)
+{
+  hashval_t retval = 0;
+
+  retval ^= htab_hash_string (elem->binary);
+  if (elem->debug != NULL)
+    retval ^= htab_hash_string (elem->debug);
+
+  return retval;
+}
+
+static int
+missing_filepair_eq (const struct missing_filepair *elem1,
+		       const struct missing_filepair *elem2)
+{
+  return strcmp (elem1->binary, elem2->binary) == 0
+         && ((elem1->debug == NULL) == (elem2->debug == NULL))
+         && (elem1->debug == NULL || strcmp (elem1->debug, elem2->debug) == 0);
+}
+
+static void
+debug_print_missing (const char *binary, const char *debug)
+{
+  size_t binary_len0 = strlen (binary) + 1;
+  size_t debug_len0 = debug ? strlen (debug) + 1 : 0;
+  struct missing_filepair missing_filepair_find;
+  struct missing_filepair *missing_filepair;
+  struct missing_filepair **slot;
+
+  if (build_id_verbose < BUILD_ID_VERBOSE_ON)
+    return;
+
+  if (missing_filepair_hash == NULL)
+    {
+      obstack_init (&missing_filepair_obstack);
+      missing_filepair_hash = htab_create_alloc (64,
+	(hashval_t (*) (const void *)) missing_filepair_hash_func,
+	(int (*) (const void *, const void *)) missing_filepair_eq, NULL,
+	missing_filepair_xcalloc, NULL);
+    }
+
+  /* Use MISSING_FILEPAIR_FIND first instead of calling obstack_alloc with
+     obstack_free in the case of a (rare) match.  The problem is ALLOC_F for
+     MISSING_FILEPAIR_HASH allocates from MISSING_FILEPAIR_OBSTACK maintenance
+     structures for MISSING_FILEPAIR_HASH.  Calling obstack_free would possibly
+     not to free only MISSING_FILEPAIR but also some such structures (allocated
+     during the htab_find_slot call).  */
+
+  missing_filepair_find.binary = (char *) binary;
+  missing_filepair_find.debug = (char *) debug;
+  slot = (struct missing_filepair **) htab_find_slot (missing_filepair_hash,
+						      &missing_filepair_find,
+						      INSERT);
+
+  /* While it may be still printed duplicitely with the missing debuginfo file
+   * it is due to once printing about the binary file build-id link and once
+   * about the .debug file build-id link as both the build-id symlinks are
+   * located in the debuginfo package.  */
+
+  if (*slot != NULL)
+    return;
+
+  missing_filepair = obstack_alloc (&missing_filepair_obstack,
+				      sizeof (*missing_filepair) - 1
+				      + binary_len0 + debug_len0);
+  missing_filepair->binary = missing_filepair->data;
+  memcpy (missing_filepair->binary, binary, binary_len0);
+  if (debug != NULL)
+    {
+      missing_filepair->debug = missing_filepair->binary + binary_len0;
+      memcpy (missing_filepair->debug, debug, debug_len0);
+    }
+  else
+    missing_filepair->debug = NULL;
+
+  *slot = missing_filepair;
+
+      {
+	/* We do not collect and flush these messages as each such message
+	   already requires its own separate lines.  */
+
+	fprintf_unfiltered (gdb_stdlog,
+			    _("Missing separate debuginfo for %s\n"), binary);
+        if (debug != NULL)
+	  {
+	    fprintf_unfiltered (gdb_stdlog, _("Try: %s%s\"\n"),
+				"zypper install -C \"debuginfo(build-id)=",
+				debug);
+	  }
+      }
+}
+
 /* Scan and build partial symbols for a symbol file.
    We have been initialized by a call to elf_symfile_init, which
    currently does nothing.
@@ -1331,6 +1461,14 @@ elf_symfile_read (struct objfile *objfile, int symfile_flags)
 	  make_cleanup_bfd_unref (abfd);
 	  symbol_file_add_separate (abfd, debugfile, symfile_flags, objfile);
 	  do_cleanups (cleanup);
+	}
+      /* Check if any separate debug info has been extracted out.  */
+      else if (bfd_get_section_by_name (objfile->obfd, ".gnu_debuglink")
+	       != NULL)
+	{
+	  char *build_id = build_id_get(objfile);
+	  debug_print_missing (objfile->original_name, build_id);
+	  xfree(build_id);
 	}
     }
 }
@@ -1616,4 +1754,14 @@ _initialize_elfread (void)
 
   elf_objfile_gnu_ifunc_cache_data = register_objfile_data ();
   gnu_ifunc_fns_p = &elf_gnu_ifunc_fns;
+
+  add_setshow_zinteger_cmd ("build-id-verbose", no_class, &build_id_verbose,
+			    _("Sets the build-id locator on or off."),
+			    _("Show the state of the build-id locator."),
+			    _("1 enables printing of commands to install "
+			      "missing debug symbols,\n"
+			      "0 disables it."),
+			    NULL,
+			    show_build_id_verbose,
+			    &setlist, &showlist);
 }

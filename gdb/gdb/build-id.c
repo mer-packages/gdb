@@ -45,6 +45,25 @@ build_id_bfd_get (bfd *abfd)
   return elf_tdata (abfd)->build_id;
 }
 
+char *
+build_id_get(struct objfile *objfile)
+{
+  char *result = NULL;
+  struct elf_build_id *build_id = build_id_bfd_get (objfile->obfd);
+  if (build_id)
+    {
+      int i;
+      char *p;
+      result = xmalloc((2 * build_id->size) + 1);
+      for (i = 0, p = result; i < build_id->size; ++i, p += 2)
+        {
+          sprintf(p, "%02x", build_id->data[i]);
+        }
+    }
+
+  return result;
+}
+
 /* See build-id.h.  */
 
 int
