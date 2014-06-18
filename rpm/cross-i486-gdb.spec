@@ -20,22 +20,6 @@ Source0:    ftp://ftp.gnu.org/gnu/gdb/%{name}-%{version}.tar.bz2
 Source1:    gdb-rpmlintrc
 Source2:    precheckin.sh
 
-Patch0: gdb-archer.patch
-# New locating of the matching binaries from the pure core file (build-id).
-#=push
-Patch1: gdb-6.6-buildid-locate.patch
-# Fix loading of core files without build-ids but with build-ids in executables.
-#=push
-Patch2: gdb-6.6-buildid-locate-solib-missing-ids.patch
-#=push
-Patch3: gdb-6.6-buildid-locate-rpm.patch
-# Workaround librpm BZ 643031 due to its unexpected exit() calls (BZ 642879).
-#=push
-Patch4: gdb-6.6-buildid-locate-rpm-librpm-workaround.patch
-#
-Patch5: gdb-6.6-buildid-locate-rpm-suse.patch
-
-
 Requires(post): /sbin/install-info
 Requires(postun): /sbin/install-info
 BuildRequires:  pkgconfig(ncurses)
@@ -71,12 +55,6 @@ This package provides a program that allows you to run GDB on a different machin
 
 %prep
 %setup -q -n %{name}-%{version}/gdb
-%patch0 -p1
-%patch1 -p1
-%patch2 -p1
-%patch3 -p1
-%patch4 -p1
-%patch5 -p1
 # >> setu1
 # Files have `# <number> <file>' statements breaking VPATH / find-debuginfo.sh .
 rm -f gdb/ada-exp.c gdb/ada-lex.c gdb/c-exp.c gdb/cp-name-parser.c gdb/f-exp.c
