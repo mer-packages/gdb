@@ -2035,7 +2035,8 @@ arm_prologue_this_id (struct frame_info *this_frame,
 {
   struct arm_prologue_cache *cache;
   struct frame_id id;
-  CORE_ADDR pc, func;
+  CORE_ADDR pc, sp, func;
+  struct frame_info *next_frame = get_next_frame(this_frame);
 
   if (*this_cache == NULL)
     *this_cache = arm_make_prologue_cache (this_frame);
@@ -2057,7 +2058,18 @@ arm_prologue_this_id (struct frame_info *this_frame,
   if (!func)
     func = pc;
 
-  id = frame_id_build (cache->prev_sp, func);
+  /* If PC didn't change from the previous unwound frame and we made a guess
+   * that SP is a frame pointer (last resort), we're now in an infinite loop
+   * creating frames with SP increasing by cache->framesize, but in fact the
+   * loop is unwinding a single stack frame over and over. Upon detecting this
+   * condition use stack pointer from the current frame to create an already
+   * existing id for this frame in order to force breaking the loop. */
+  sp = cache->prev_sp;
+  if (next_frame && pc == get_frame_pc (next_frame) &&
+      cache->framereg == ARM_SP_REGNUM)
+    sp = get_frame_register_unsigned (this_frame, ARM_SP_REGNUM);
+
+  id = frame_id_build (sp, func);
   *this_id = id;
 }
 
