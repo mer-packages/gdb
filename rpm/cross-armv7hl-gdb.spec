@@ -108,6 +108,7 @@ export CFLAGS="$RPM_OPT_FLAGS"
 --without-libunwind                             \
 --enable-64-bit-bfd                             \
 --enable-static --disable-shared --enable-debug \
+--with-system-gdbinit=/etc/gdbinit              \
 %{_target_platform}
 
 # We can't use --with-system-readline as we can't update system readline to
@@ -147,6 +148,10 @@ rm -f $RPM_BUILD_ROOT%{_infodir}/configure*
 rm -rf $RPM_BUILD_ROOT%{_includedir}
 rm -rf $RPM_BUILD_ROOT/%{_libdir}/lib{bfd*,opcodes*,iberty*,mmalloc*}
 rm -f $RPM_BUILD_ROOT%{_infodir}/dir
+
+mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/gdbinit.d
+cp $RPM_BUILD_DIR/%{gdb_src}/gdbinit $RPM_BUILD_ROOT%{_sysconfdir}
+
 # << install post
 
 
@@ -188,6 +193,8 @@ fi
 %{_infodir}/annotate.info.gz
 %{_infodir}/gdb.info.gz
 %{_infodir}/stabs.info.gz
+%config %{_sysconfdir}/gdbinit
+%{_sysconfdir}/gdbinit.d
 # << files
 
 %files gdbserver
