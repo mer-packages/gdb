@@ -1,6 +1,6 @@
 /* Generic SDT probe support for GDB.
 
-   Copyright (C) 2012 Free Software Foundation, Inc.
+   Copyright (C) 2012-2014 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -21,6 +21,11 @@
 #define PROBE_H 1
 
 #include "gdb_vecs.h"
+
+/* Definition of a vector of probes.  */
+
+typedef struct probe *probe_p;
+DEF_VEC_P (probe_p);
 
 struct linespec_result;
 
@@ -67,20 +72,25 @@ struct probe_ops
     /* Return the number of arguments of PROBE.  */
 
     unsigned (*get_probe_argument_count) (struct probe *probe,
-					  struct objfile *objfile);
+					  struct frame_info *frame);
+
+    /* Return 1 if the probe interface can evaluate the arguments of probe
+       PROBE, zero otherwise.  See the comments on
+       sym_probe_fns:can_evaluate_probe_arguments for more details.  */
+
+    int (*can_evaluate_probe_arguments) (struct probe *probe);
 
     /* Evaluate the Nth argument from the PROBE, returning a value
        corresponding to it.  The argument number is represented N.  */
 
     struct value *(*evaluate_probe_argument) (struct probe *probe,
-					      struct objfile *objfile,
-					      unsigned n);
+					      unsigned n,
+					      struct frame_info *frame);
 
     /* Compile the Nth argument of the PROBE to an agent expression.
        The argument number is represented by N.  */
 
-    void (*compile_to_ax) (struct probe *probe, struct objfile *objfile,
-			   struct agent_expr *aexpr,
+    void (*compile_to_ax) (struct probe *probe, struct agent_expr *aexpr,
 			   struct axs_value *axs_value, unsigned n);
 
     /* Set the semaphore associated with the PROBE.  This function only makes
@@ -108,8 +118,8 @@ struct probe_ops
     void (*gen_info_probes_table_header) (VEC (info_probe_column_s) **heads);
 
     /* Function that will fill VALUES with the values of the extra fields
-       to be printed for PROBE  and OBJFILE.  If the backend implements
-       the `gen_ui_out_table_header' method, then it should implement
+       to be printed for PROBE.  If the backend implements the
+       `gen_ui_out_table_header' method, then it should implement
        this method as well.  The backend should also guarantee that the
        order and the number of values in the vector is exactly the same
        as the order of the extra fields provided in the method
@@ -118,7 +128,6 @@ struct probe_ops
        position in the vector.  */
 
     void (*gen_info_probes_table_values) (struct probe *probe,
-					  struct objfile *objfile,
 					  VEC (const_char_ptr) **values);
   };
 
@@ -157,6 +166,11 @@ struct probe
     /* The operations associated with this probe.  */
     const struct probe_ops *pops;
 
+    /* The objfile which contains this probe.  Even if the probe is also
+       present in a separate debug objfile, this variable always points to
+       the non-separate debug objfile.  */
+    struct objfile *objfile;
+
     /* The name of the probe.  */
     const char *name;
 
@@ -181,11 +195,9 @@ extern struct symtabs_and_lines parse_probes (char **argptr,
 extern void register_probe_ops (struct probe *probe);
 
 /* Given a PC, find an associated probe with type PTYPE.  If a probe is
-   found, set *OBJFILE_OUT to the probe's objfile, and return the
-   probe.  If no probe is found, return NULL.  */
+   found, return it.  If no probe is found, return NULL.  */
 
-extern struct probe *find_probe_by_pc (CORE_ADDR pc,
-				       struct objfile **objfile_out);
+extern struct probe *find_probe_by_pc (CORE_ADDR pc);
 
 /* Search OBJFILE for a probe with the given PROVIDER, NAME and PTYPE.
    Return a VEC of all probes that were found.  If no matching probe
@@ -209,6 +221,24 @@ extern void info_probes_for_ops (char *arg, int from_tty,
    associated with `info probes', without having it registered yet.  */
 
 extern struct cmd_list_element **info_probes_cmdlist_get (void);
+
+/* Return the argument count of the specified probe.  */
+
+extern unsigned get_probe_argument_count (struct probe *probe,
+					  struct frame_info *frame);
+
+/* Return 1 if the probe interface associated with PROBE can evaluate
+   arguments, zero otherwise.  See the comments on the definition of
+   sym_probe_fns:can_evaluate_probe_arguments for more details.  */
+
+extern int can_evaluate_probe_arguments (struct probe *probe);
+
+/* Evaluate argument N of the specified probe.  N must be between 0
+   inclusive and get_probe_argument_count exclusive.  */
+
+extern struct value *evaluate_probe_argument (struct probe *probe,
+					      unsigned n,
+					      struct frame_info *frame);
 
 /* A convenience function that finds a probe at the PC in FRAME and
    evaluates argument N, with 0 <= N < number_of_args.  If there is no

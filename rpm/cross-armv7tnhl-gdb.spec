@@ -11,7 +11,7 @@ Name: cross-armv7tnhl-gdb
 # << macros
 
 Summary:    A GNU source-level debugger for C, C++, Java and other languages
-Version:    7.5.1
+Version:    7.7.1
 Release:    1
 Group:      Development/Debuggers
 License:    GPLv3+
@@ -19,22 +19,6 @@ URL:        http://gnu.org/software/gdb/
 Source0:    ftp://ftp.gnu.org/gnu/gdb/%{name}-%{version}.tar.bz2
 Source1:    gdb-rpmlintrc
 Source2:    precheckin.sh
-
-Patch0: gdb-archer.patch
-# New locating of the matching binaries from the pure core file (build-id).
-#=push
-Patch1: gdb-6.6-buildid-locate.patch
-# Fix loading of core files without build-ids but with build-ids in executables.
-#=push
-Patch2: gdb-6.6-buildid-locate-solib-missing-ids.patch
-#=push
-Patch3: gdb-6.6-buildid-locate-rpm.patch
-# Workaround librpm BZ 643031 due to its unexpected exit() calls (BZ 642879).
-#=push
-Patch4: gdb-6.6-buildid-locate-rpm-librpm-workaround.patch
-#
-Patch5: gdb-6.6-buildid-locate-rpm-suse.patch
-
 
 Requires(post): /sbin/install-info
 Requires(postun): /sbin/install-info
@@ -57,7 +41,6 @@ and printing their data.
 %package gdbserver
 Summary:    A standalone server for GDB (the GNU source-level debugger)
 Group:      Development/Debuggers
-Requires:   %{name} = %{version}-%{release}
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
 
@@ -72,12 +55,6 @@ This package provides a program that allows you to run GDB on a different machin
 
 %prep
 %setup -q -n %{name}-%{version}/gdb
-%patch0 -p1
-%patch1 -p1
-%patch2 -p1
-%patch3 -p1
-%patch4 -p1
-%patch5 -p1
 # >> setu1
 # Files have `# <number> <file>' statements breaking VPATH / find-debuginfo.sh .
 rm -f gdb/ada-exp.c gdb/ada-lex.c gdb/c-exp.c gdb/cp-name-parser.c gdb/f-exp.c
@@ -131,6 +108,7 @@ export CFLAGS="$RPM_OPT_FLAGS"
 --without-libunwind                             \
 --enable-64-bit-bfd                             \
 --enable-static --disable-shared --enable-debug \
+--with-system-gdbinit=/etc/gdbinit              \
 %{_target_platform}
 
 # We can't use --with-system-readline as we can't update system readline to
@@ -156,11 +134,7 @@ cd %{gdb_build}
 %make_install
 
 # >> install post
-# install the gcore script in /usr/bin
-%if "%{?crosstarget}" == ""
-cp $RPM_BUILD_DIR/%{gdb_src}/gdb/gdb_gcore.sh $RPM_BUILD_ROOT%{_bindir}/gcore
-chmod 755 $RPM_BUILD_ROOT%{_bindir}/gcore
-%else
+%if "%{?crosstarget}" != ""
 rm -rf $RPM_BUILD_ROOT%{_infodir}/
 rm -rf $RPM_BUILD_ROOT%{_mandir}/
 %endif
@@ -174,6 +148,10 @@ rm -f $RPM_BUILD_ROOT%{_infodir}/configure*
 rm -rf $RPM_BUILD_ROOT%{_includedir}
 rm -rf $RPM_BUILD_ROOT/%{_libdir}/lib{bfd*,opcodes*,iberty*,mmalloc*}
 rm -f $RPM_BUILD_ROOT%{_infodir}/dir
+
+mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/gdbinit.d
+cp $RPM_BUILD_DIR/%{gdb_src}/gdbinit $RPM_BUILD_ROOT%{_sysconfdir}
+
 # << install post
 
 
@@ -187,14 +165,12 @@ cd %{gdb_build}
 %post
 %install_info --info-dir=%_infodir %{_infodir}/annotate.info.gz
 %install_info --info-dir=%_infodir %{_infodir}/gdb.info.gz
-%install_info --info-dir=%_infodir %{_infodir}/gdbint.info.gz
 %install_info --info-dir=%_infodir %{_infodir}/stabs.info.gz
 
 %postun
 if [ $1 = 0 ] ;then
 %install_info_delete --info-dir=%{_infodir} %{_infodir}/annotate.info.gz
 %install_info_delete --info-dir=%{_infodir} %{_infodir}/gdb.info.gz
-%install_info_delete --info-dir=%{_infodir} %{_infodir}/gdbint.info.gz
 %install_info_delete --info-dir=%{_infodir} %{_infodir}/stabs.info.gz
 fi
 %endif
@@ -210,12 +186,15 @@ fi
 %doc COPYING COPYING.LIB README NEWS
 %{_bindir}/gcore
 %{_bindir}/gdb
+%{_mandir}/*/gcore.1*
 %{_mandir}/*/gdb.1*
+%{_mandir}/*/gdbinit.5*
 %{_datadir}/gdb
 %{_infodir}/annotate.info.gz
 %{_infodir}/gdb.info.gz
-%{_infodir}/gdbint.info.gz
 %{_infodir}/stabs.info.gz
+%config %{_sysconfdir}/gdbinit
+%{_sysconfdir}/gdbinit.d
 # << files
 
 %files gdbserver

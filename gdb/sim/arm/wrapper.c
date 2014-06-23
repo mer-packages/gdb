@@ -1,6 +1,5 @@
 /* run front end support for arm
-   Copyright (C) 1995-1997, 2000-2002, 2007-2012 Free Software
-   Foundation, Inc.
+   Copyright (C) 1995-2014 Free Software Foundation, Inc.
 
    This file is part of ARM SIM.
 
@@ -37,6 +36,7 @@
 #include "run-sim.h"
 #include "gdb/sim-arm.h"
 #include "gdb/signals.h"
+#include "libiberty.h"
 
 host_callback *sim_callback;
 
@@ -132,9 +132,9 @@ sim_size (size)
 }
 
 void
-ARMul_ConsolePrint VPARAMS ((ARMul_State * state,
-			     const char * format,
-			     ...))
+ARMul_ConsolePrint (ARMul_State * state,
+		    const char * format,
+		    ...)
 {
   va_list ap;
 
@@ -243,12 +243,18 @@ sim_create_inferior (sd, abfd, argv, env)
   int mach;
   char **arg;
 
-  if (abfd != NULL)
-    ARMul_SetPC (state, bfd_get_start_address (abfd));
-  else
-    ARMul_SetPC (state, 0);	/* ??? */
+  init ();
 
-  mach = bfd_get_mach (abfd);
+  if (abfd != NULL)
+    {
+      ARMul_SetPC (state, bfd_get_start_address (abfd));
+      mach = bfd_get_mach (abfd);
+    }
+  else
+    {
+      ARMul_SetPC (state, 0);	/* ??? */
+      mach = 0;
+    }
 
   switch (mach)
     {
@@ -443,7 +449,7 @@ sim_store_register (sd, rn, memory, length)
      SIM_DESC sd ATTRIBUTE_UNUSED;
      int rn;
      unsigned char *memory;
-     int length ATTRIBUTE_UNUSED;
+     int length;
 {
   init ();
 
@@ -544,7 +550,7 @@ sim_store_register (sd, rn, memory, length)
       return 0;
     }
 
-  return -1;
+  return length;
 }
 
 int
@@ -552,9 +558,10 @@ sim_fetch_register (sd, rn, memory, length)
      SIM_DESC sd ATTRIBUTE_UNUSED;
      int rn;
      unsigned char *memory;
-     int length ATTRIBUTE_UNUSED;
+     int length;
 {
   ARMword regval;
+  int len = length;
 
   init ();
 
@@ -657,21 +664,21 @@ sim_fetch_register (sd, rn, memory, length)
       return 0;
     }
 
-  while (length)
+  while (len)
     {
       tomem (state, memory, regval);
 
-      length -= 4;
+      len -= 4;
       memory += 4;
       regval = 0;
     }  
 
-  return -1;
+  return length;
 }
 
 #ifdef SIM_TARGET_SWITCHES
 
-static void sim_target_parse_arg_array PARAMS ((char **));
+static void sim_target_parse_arg_array (char **);
 
 typedef struct
 {
@@ -944,7 +951,7 @@ sim_set_callbacks (ptr)
 }
 
 char **
-sim_complete_command (SIM_DESC sd, char *text, char *word)
+sim_complete_command (SIM_DESC sd, const char *text, const char *word)
 {
   return NULL;
 }

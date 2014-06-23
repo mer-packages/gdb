@@ -1,0 +1,10 @@
+set python print-stack full
+
+python
+import os
+GDBINIT_DIR = '/etc/gdbinit.d'
+for file in os.listdir(GDBINIT_DIR):
+	file = "%s/%s" % (GDBINIT_DIR, file)
+	if os.path.isfile(file):
+		gdb.execute("source %s" % file)
+end
